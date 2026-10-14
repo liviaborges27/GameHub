@@ -79,6 +79,8 @@ async function initialize() {
   const schema = await fs.readFile(schemaPath, "utf8");
   await db.query(schema);
 
+  await db.query("TRUNCATE TABLE products RESTART IDENTITY");
+
   const passwordHash = await bcrypt.hash("123456", 10);
   await db.query(
     `INSERT INTO users (name, email, password_hash, role)

@@ -1,34 +1,43 @@
- GameHub
+# GameHub - Testes de regressão e validação
 
-## Antes de alterar o código
-- Faça login com a conta de demonstração.
-- [ Abra o catálogo e observe a aba Network
-- [ ] Digite uma busca devagar e depois cole um termo completo.
-- [ ] Teste categorias e ordenação.
-- [ ] Abra o dashboard e conte as consultas relacionadas aos indicadores
-- [ ] Entre como administrador e cadastre um produto; observe a atualização do catálogo
-- [ ] Exclua um produto e observe quantos dados são solicitados novamente
-- [ ] Volte entre Dashboard e Produtos e observe se a página busca e renderiza o catálogo inteiro.
-- [ ] Registre duração, quantidade de requisições e quantidade de produtos recebidos.
- [ ] Use os mesmos passos após cada correção.
+## Reproduzindo os bugs antes da correção
+
+1. Inicialize o banco com `npm run init-db` em `back/`.
+2. Inicie o backend e o frontend.
+3. Faça login com a conta administrativa (`admin@gamehub.local` / `123456`).
+4. Abra o catálogo e teste os cenários abaixo:
+   - Digite `console` no campo de busca e observe quantas requisições `GET /products` são disparadas enquanto a digitação acontece.
+   - Selecione uma categoria e confirme se o filtro não retorna apenas os itens daquela categoria.
+   - Ordene por preço crescente e depois decrescente e confirme se o resultado não segue a ordem numérica correta.
+   - Cadastre e exclua um produto e observe se a página reexecuta a listagem completa do catálogo em vez de atualizar apenas o estado local.
+   - Abra o dashboard e verifique as consultas no terminal do backend; a implementação original faz várias consultas sequenciais e processa os dados em múltiplos passos.
+5. Registre, em cada cenário, a quantidade de itens carregados, a quantidade de requisições e o tempo observado no navegador.
 
 ## Testes de regressão
-- Pesquisa por nome e descrição.
-- [ ] Filtro por categoria.
-- [ ] Ordenação por nome e preço.
-- [ ] Cadastro e exclusão com conta de administrador; compare a quantidade de dados recarregados.
-- [ ] Acesso negado para operações administrativas com conta de aluno
-- [ ] Indicadores do dashboard compatíveis com o catálogo.
--[ ] Requisições simultâneas e respostas de busca em ordem diferente
 
-Registre somente tempos medidos no seu computador; não invente resultados.
+- [ ] Pesquisa por nome e descrição com debounce.
+- [ ] Filtro por categoria corretamente aplicado no backend.
+- [ ] Ordenação por nome e por preço em ordem crescente/decrescente.
+- [ ] Paginação com `limit`/`page` ou `offset` funcionando no backend e no frontend.
+- [ ] Cadastro e exclusão sem refetch completo do catálogo.
+- [ ] Dashboard retornando indicadores agregados em poucas consultas.
+- [ ] Índices de `nome`, `categoria` e `preco` presentes após a execução do script de inicialização.
+- [ ] Acesso administrativo bloqueado para aluno e permitido para administrador.
 
+## Verificação após a correção
 
-## Cenarios obrigatórios para a versão com gargalos
+1. Com a mesma base e o mesmo navegador, repita os passos acima.
+2. Confirme que a busca dispara apenas uma requisição após o atraso configurado (300-500 ms).
+3. Confirme que o catálogo responde com lotes paginados, sem renderizar 60.000 itens em um único DOM.
+4. Confirme que os produtos são exibidos em ordem correta por preço e por categoria.
+5. Confirme que o dashboard retorna todos os indicadores em uma consulta agregada ou em poucas consultas otimizadas.
+6. Registre em notas locais os tempos e as contagens; o objetivo é comparar o comportamento antes e depois da correção, sem inventar resultados.
 
-1. Após executar `npm run init-db`, confirme que a listagem mostra aproximadamente 60.000 produtos. Se mostrar poucos, o inicializador não foi executado contra o banco configurado em `back/.env`.
-2. Abra DevTools > Network, filtre por `products` e digite `console` lentamente. Conte quantas requisições GET são disparadas enquanto digita
-3. Na primeira carga, compare o tamanho da resposta JSON e o tempo de renderização na aba Performance. O navegador deverá montar o catálogo completo; não use apenas o tempo do filtro local como medida
-4. Observe o terminal do backend: a mesma listagem é registrada duas vezes por busca e informa linhas/tempo de cada execução.
-5. Abra o dashboard e observe o log de quatro consultas sequenciais
-6. Compare os resultados com a versão resolvida, no mesmo computador, banco e navegador. Não use `setTimeout` ou `sleep` para fabricar lentidão: o exercício deve medir trabalho desnecessário real.
+## Cenários obrigatórios para a versão resolvida
+
+1. `npm run init-db` deve recriar os índices de `name`, `category` e `price` no PostgreSQL.
+2. O endpoint de listagem deve suportar paginação e não carregar todos os 60.000 produtos numa única resposta.
+3. A listagem deve respeitar filtro combinado por categoria, busca e preço.
+4. A ordenação por preço deve ser numérica, não lexical.
+5. O dashboard deve ser calculado com agregações nativas do SQL.
+6. O frontend deve renderizar somente a página atual e não o catálogo completo no mesmo momento.

@@ -6,6 +6,18 @@ export interface ProductFilters {
   search?: string;
   category?: string;
   sort?: string;
+  page?: number;
+  limit?: number;
+  minPrice?: number;
+  maxPrice?: number;
+}
+
+export interface ProductListResult {
+  items: Product[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
 }
 
 function mapProduct(row: Record<string, unknown>): Product {
@@ -20,37 +32,70 @@ function mapProduct(row: Record<string, unknown>): Product {
 }
 
 export class ProductRepository {
-  async findAll(filters: ProductFilters): Promise<Product[]> {
+  async findAll(filters: ProductFilters): Promise<ProductListResult> {
     const conditions: string[] = [];
     const values: unknown[] = [];
+    const normalizedSearch = filters.search?.trim();
+    const normalizedCategory = filters.category?.trim();
 
-    if (filters.search) {
-      values.push(`%${filters.search}%`);
+    if (normalizedSearch) {
+      values.push(`%${normalizedSearch}%`);
       const parameter = `$${values.length}`;
       conditions.push(`(name ILIKE ${parameter} OR description ILIKE ${parameter})`);
     }
 
-    if (filters.category) {
-      values.push(filters.category);
-      conditions.push(`name = $${values.length}`);
+    if (normalizedCategory) {
+      values.push(normalizedCategory);
+      conditions.push(`category ILIKE $${values.length}`);
+    }
+
+    if (typeof filters.minPrice === "number" && Number.isFinite(filters.minPrice)) {
+      values.push(filters.minPrice);
+      conditions.push(`price >= $${values.length}`);
+    }
+
+    if (typeof filters.maxPrice === "number" && Number.isFinite(filters.maxPrice)) {
+      values.push(filters.maxPrice);
+      conditions.push(`price <= $${values.length}`);
     }
 
     const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
-    const orderBy = filters.sort === "price" ? "price ASC" : "name ASC";
-    const sql = `SELECT id, name, description, category, price, stock FROM products ${where} ORDER BY ${orderBy}`;
+    const limit = Math.max(1, Math.min(Number(filters.limit ?? 20), 100));
+    const page = Math.max(1, Number(filters.page ?? 1));
+    const offset = (page - 1) * limit;
 
-    const firstStartedAt = performance.now();
-    const discardedResult = await db.query(sql, values);
-    console.info(
-      `[SQL LENTO] listagem descartada: ${discardedResult.rowCount ?? 0} linhas em ${(performance.now() - firstStartedAt).toFixed(2)} ms`
-    );
+    const orderBy = (() => {
+      switch (String(filters.sort ?? "name").toLowerCase()) {
+        case "price":
+        case "price_asc":
+          return "price ASC";
+        case "price_desc":
+        case "-price":
+          return "price DESC";
+        default:
+          return "name ASC";
+      }
+    })();
 
-    const secondStartedAt = performance.now();
-    const result = await db.query(sql, values);
-    console.info(
-      `[SQL LENTO] listagem retornada: ${result.rowCount ?? 0} linhas em ${(performance.now() - secondStartedAt).toFixed(2)} ms`
-    );
-    return result.rows.map(mapProduct);
+    const countSql = `SELECT COUNT(*) AS total FROM products ${where}`;
+    const countResult = await db.query<{ total: string }>(countSql, values);
+    const total = Number(countResult.rows[0]?.total ?? 0);
+    const totalPages = Math.max(1, Math.ceil(total / limit));
+
+    const sql = `SELECT id, name, description, category, price, stock
+                 FROM products ${where}
+                 ORDER BY ${orderBy}
+                 LIMIT $${values.length + 1} OFFSET $${values.length + 2}`;
+
+    const result = await db.query(sql, [...values, limit, offset]);
+
+    return {
+      items: result.rows.map(mapProduct),
+      total,
+      page,
+      limit,
+      totalPages
+    };
   }
 
   async create(input: CreateProductDTO): Promise<Product> {
@@ -68,18 +113,22 @@ export class ProductRepository {
   }
 
   async getDashboard() {
-    const dashboardStartedAt = performance.now();
-    const total = await db.query("SELECT COUNT(*) AS value FROM products");
-    const lowStock = await db.query("SELECT COUNT(*) AS value FROM products WHERE stock <= 5");
-    const inventory = await db.query("SELECT COALESCE(SUM(price * stock), 0) AS value FROM products");
-    const categories = await db.query("SELECT COUNT(DISTINCT category) AS value FROM products");
-    console.info(`[SQL LENTO] dashboard: 4 consultas sequenciais em ${(performance.now() - dashboardStartedAt).toFixed(2)} ms`);
+    const result = await db.query(`
+      SELECT
+        COUNT(*)::int AS "totalProducts",
+        COUNT(*) FILTER (WHERE stock <= 5)::int AS "lowStock",
+        COUNT(DISTINCT category)::int AS "categories",
+        COALESCE(SUM(price * stock), 0)::numeric AS "inventoryValue"
+      FROM products
+    `);
+
+    const row = result.rows[0];
 
     return {
-      totalProducts: Number(total.rows[0].value),
-      lowStock: Number(lowStock.rows[0].value),
-      inventoryValue: Number(inventory.rows[0].value),
-      categories: Number(categories.rows[0].value)
+      totalProducts: Number(row.totalProducts),
+      lowStock: Number(row.lowStock),
+      inventoryValue: Number(row.inventoryValue),
+      categories: Number(row.categories)
     };
   }
 }

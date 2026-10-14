@@ -3,6 +3,7 @@
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { login } from "@/fetch/authRequests";
+import { notifyAuthChanged } from "@/utils/useAuth";
 
 export function LoginPage() {
   const router = useRouter();
@@ -19,6 +20,8 @@ export function LoginPage() {
     try {
       const result = await login({ email, password });
       window.localStorage.setItem("gamehub-token", result.token);
+      window.localStorage.setItem("gamehub-user", JSON.stringify(result.user));
+      notifyAuthChanged();
       router.push("/dashboard");
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Falha no login.");
@@ -43,3 +46,5 @@ export function LoginPage() {
     </section>
   );
 }
+
+export default LoginPage;
