@@ -1,9 +1,16 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001/api";
+const API_URL = (
+  process.env.NEXT_PUBLIC_API_URL ??
+  (process.env.NODE_ENV === "development" ? "http://localhost:3001/api" : "")
+).trim().replace(/\/+$/, "");
 
 export async function apiRequest<T>(
   path: string,
   options: RequestInit = {}
 ): Promise<T> {
+  if (!API_URL) {
+    throw new Error("Configure NEXT_PUBLIC_API_URL antes de gerar o build do frontend.");
+  }
+
   const token = typeof window !== "undefined"
     ? window.localStorage.getItem("gamehub-token")
     : null;

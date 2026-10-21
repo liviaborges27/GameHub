@@ -132,15 +132,15 @@ export function ProductsPage() {
     }
   }
 
-  const visiblePageCount = Math.min(5, totalPages);
-  const firstVisiblePage = Math.max(
-    1,
-    Math.min(page - Math.floor(visiblePageCount / 2), totalPages - visiblePageCount + 1)
-  );
-  const pageNumbers = Array.from(
-    { length: visiblePageCount },
-    (_, index) => firstVisiblePage + index
-  );
+  const visibleProducts = products
+    .filter((product) => {
+      const term = search.toLowerCase();
+      return (product.name.toLowerCase().includes(term) || product.description.toLowerCase().includes(term))
+        && (!category || product.category === category);
+    })
+    .sort((a, b) => sort === "price"
+      ? String(a.price).localeCompare(String(b.price))
+      : a.name.localeCompare(b.name));
 
   return (
     <section>

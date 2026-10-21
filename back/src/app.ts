@@ -5,10 +5,11 @@ import productRoutes from "../infra/routes/productRoutes";
 import dashboardRoutes from "../infra/routes/dashboardRoutes";
 import { requestLogger } from "../infra/middlewares/requestLogger";
 import { errorHandler } from "../infra/middlewares/errorHandler";
+import { environment } from "../infra/config/environment";
 
 export const app = express();
 
-app.use(cors({ origin: "*" }));
+app.use(cors({ origin: "http://localhost:3000" }));
 app.use(express.json());
 app.use(requestLogger);
 
